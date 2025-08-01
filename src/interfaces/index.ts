@@ -20,16 +20,30 @@ export interface ApiErrorInterface {
 }
 
 /**
- * JWT Payload Interface
- * Defines the structure of JWT token payload
+ * Frontend User Token Payload
+ * Token structure for frontend React application
  */
-export interface JWTPayload {
-    id?: string;
-    email?: string;
-    role?: string;
-    tokenType?: 'access' | 'refresh';
+export interface UserTokenPayload {
+    userId: string;
+    role: string;
     [key: string]: any;
 }
+
+/**
+ * Internal System Token Payload  
+ * Token structure for service-to-service communication
+ */
+export interface SystemTokenPayload {
+    system: true;
+    service: string;
+    [key: string]: any;
+}
+
+/**
+ * Combined JWT Payload Interface
+ * Union type for both user and system tokens
+ */
+export type JWTPayload = UserTokenPayload | SystemTokenPayload;
 
 /**
  * JWT Options Interface
@@ -44,10 +58,10 @@ export interface JWTOptions {
 }
 
 /**
- * Decoded Token Interface
- * Represents a decoded JWT token with standard claims
+ * Decoded User Token Interface
+ * Represents a decoded frontend user JWT token
  */
-export interface DecodedToken extends JWTPayload {
+export interface DecodedUserToken extends UserTokenPayload {
     iat: number;
     exp: number;
     iss?: string;
@@ -55,6 +69,25 @@ export interface DecodedToken extends JWTPayload {
     sub?: string;
     jti?: string;
 }
+
+/**
+ * Decoded System Token Interface
+ * Represents a decoded internal system JWT token
+ */
+export interface DecodedSystemToken extends SystemTokenPayload {
+    iat: number;
+    exp: number;
+    iss?: string;
+    aud?: string;
+    sub?: string;
+    jti?: string;
+}
+
+/**
+ * Decoded Token Interface
+ * Union type for decoded tokens
+ */
+export type DecodedToken = DecodedUserToken | DecodedSystemToken;
 
 /**
  * User Interface
@@ -72,14 +105,23 @@ export interface User {
 }
 
 /**
- * Authentication Response Interface
+ * Simple Token Response Interface
  */
-export interface AuthResponse {
-    user: User;
+export interface TokenResponse {
     token: string;
-    refreshToken?: string;
-    expiresIn: number;
+    expiresIn: string;
 }
+
+/**
+ * Type Guards for Token Validation
+ */
+export const isUserToken = (token: DecodedToken): token is DecodedUserToken => {
+    return 'userId' in token && typeof token.userId === 'string';
+};
+
+export const isSystemToken = (token: DecodedToken): token is DecodedSystemToken => {
+    return 'system' in token && token.system === true && 'service' in token;
+};
 
 /**
  * API Response Interface

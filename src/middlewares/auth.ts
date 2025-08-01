@@ -1,26 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
 import { 
     extractToken, 
-    validateAccessToken, 
-    validateRefreshToken, 
+    validateToken,
+    validateUserToken, 
+    validateSystemToken, 
     isTokenExpired, 
     decodeJWT 
 } from '../utils/token';
-import { DecodedToken } from '../interfaces';
+import { DecodedUserToken, DecodedSystemToken, isUserToken, isSystemToken } from '../interfaces';
 import HttpError from '../utils/httpError';
 
 /**
- * 🔐 Authentication Middlewares
- * Clear separation of access tokens vs refresh tokens
+ * 🔐 Simplified Authentication Middlewares
+ * Support for frontend user tokens and internal system tokens
  */
 
-// Extend Request interface to include user data
+// Extend Request interface to include auth data
 declare global {
     namespace Express {
         interface Request {
-            authUser?: DecodedToken;
+            authUser?: DecodedUserToken;
+            authSystem?: DecodedSystemToken;
             authToken?: string;
-            tokenType?: 'access' | 'refresh';
+            tokenType?: 'user' | 'system';
         }
     }
 }
@@ -52,82 +54,82 @@ const extractTokenFromRequest = (req: Request): string | null => {
 };
 
 /**
- * 🎯 Access Token Authentication Middleware
- * Validates access tokens for API access (short-lived)
- * Use for: Protected API endpoints, user operations
+ * 👤 User Token Authentication Middleware
+ * Validates frontend user tokens (React app)
+ * Use for: User-facing API endpoints
  */
-export const requireAccessToken = (req: Request, res: Response, next: NextFunction): void => {
+export const requireUserAuth = (req: Request, res: Response, next: NextFunction): void => {
     try {
         const token = extractTokenFromRequest(req);
         
         if (!token) {
-            throw HttpError.unauthorized('Access token required');
+            throw HttpError.unauthorized('User authentication token required');
         }
 
-        // Validate specifically as access token
-        const decoded = validateAccessToken(token);
+        // Validate as user token
+        const decoded = validateUserToken(token);
         
         // Add user info to request object
         req.authUser = decoded;
         req.authToken = token;
-        req.tokenType = 'access';
+        req.tokenType = 'user';
         
         next();
     } catch (error) {
         if (error instanceof HttpError) {
             error.sendError(res);
         } else {
-            HttpError.unauthorized('Invalid access token').sendError(res);
+            HttpError.unauthorized('Invalid user token').sendError(res);
         }
     }
 };
 
 /**
- * 🔄 Refresh Token Authentication Middleware
- * Validates refresh tokens for token renewal (long-lived)
- * Use for: Token refresh endpoints only
+ * 🔧 System Token Authentication Middleware
+ * Validates internal system tokens (service-to-service)
+ * Use for: Internal API endpoints like /alerts/:id/evaluate
  */
-export const requireRefreshToken = (req: Request, res: Response, next: NextFunction): void => {
+export const requireSystemAuth = (req: Request, res: Response, next: NextFunction): void => {
     try {
         const token = extractTokenFromRequest(req);
         
         if (!token) {
-            throw HttpError.unauthorized('Refresh token required');
+            throw HttpError.unauthorized('System authentication token required');
         }
 
-        // Validate specifically as refresh token
-        const decoded = validateRefreshToken(token);
+        // Validate as system token
+        const decoded = validateSystemToken(token);
         
-        // Add user info to request object
-        req.authUser = decoded;
+        // Add system info to request object
+        req.authSystem = decoded;
         req.authToken = token;
-        req.tokenType = 'refresh';
+        req.tokenType = 'system';
         
         next();
     } catch (error) {
         if (error instanceof HttpError) {
             error.sendError(res);
         } else {
-            HttpError.unauthorized('Invalid refresh token').sendError(res);
+            HttpError.unauthorized('Invalid system token').sendError(res);
         }
     }
 };
 
 /**
- * 🔓 Optional Access Token Middleware
- * Adds user data if access token is present and valid
+ * 🔓 Optional User Token Middleware
+ * Adds user data if user token is present and valid
  * Use for: Public endpoints that benefit from user context
  */
-export const optionalAccessToken = (req: Request, res: Response, next: NextFunction): void => {
+export const optionalUserAuth = (req: Request, res: Response, next: NextFunction): void => {
     try {
         const token = extractTokenFromRequest(req);
         
         if (token && !isTokenExpired(token)) {
             try {
-                const decoded = validateAccessToken(token);
+                const decoded = validateUserToken(token);
                 req.authUser = decoded;
                 req.authToken = token;
-                req.tokenType = 'access';
+                req.tokenType = 'user';
             } catch {
                 // Invalid token, but it's optional so we continue without user
             }
@@ -141,9 +143,9 @@ export const optionalAccessToken = (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * 🛡️ Legacy Authentication Middleware (backwards compatibility)
- * Accepts any valid token type
- * @deprecated Use requireAccessToken or requireRefreshToken instead
+ * 🔐 General Authentication Middleware
+ * Accepts both user and system tokens
+ * Use for: Endpoints that can be accessed by both frontend users and internal services
  */
 export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
     try {
@@ -158,20 +160,20 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
             throw HttpError.unauthorized('Token has expired');
         }
 
-        // Try to validate as access token first, then refresh token
-        let decoded: DecodedToken;
-        try {
-            decoded = validateAccessToken(token);
-            req.tokenType = 'access';
-        } catch {
-            decoded = validateRefreshToken(token);
-            req.tokenType = 'refresh';
+        // Validate token and determine type
+        const decoded = validateToken(token);
+        
+        if (isUserToken(decoded)) {
+            req.authUser = decoded;
+            req.tokenType = 'user';
+        } else if (isSystemToken(decoded)) {
+            req.authSystem = decoded;
+            req.tokenType = 'system';
+        } else {
+            throw HttpError.unauthorized('Invalid token type');
         }
         
-        // Add user info to request object
-        req.authUser = decoded;
         req.authToken = token;
-        
         next();
     } catch (error) {
         if (error instanceof HttpError) {
@@ -183,11 +185,19 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
 };
 
 /**
- * 🎭 Get User Helper
+ * 👤 Get User Helper
  * Extract user from request (for use in controllers)
  */
-export const getUser = (req: Request): DecodedToken | null => {
+export const getUser = (req: Request): DecodedUserToken | null => {
     return req.authUser || null;
+};
+
+/**
+ * 🔧 Get System Helper
+ * Extract system info from request (for use in controllers)
+ */
+export const getSystem = (req: Request): DecodedSystemToken | null => {
+    return req.authSystem || null;
 };
 
 /**
@@ -202,22 +212,22 @@ export const getToken = (req: Request): string | null => {
  * 🏷️ Get Token Type Helper
  * Get the type of token used in the request
  */
-export const getTokenType = (req: Request): 'access' | 'refresh' | null => {
+export const getTokenType = (req: Request): 'user' | 'system' | null => {
     return req.tokenType || null;
 };
 
 /**
- * ✅ Check if request has access token
+ * ✅ Check if request has user token
  */
-export const hasAccessToken = (req: Request): boolean => {
-    return req.tokenType === 'access';
+export const hasUserToken = (req: Request): boolean => {
+    return req.tokenType === 'user';
 };
 
 /**
- * 🔄 Check if request has refresh token
+ * 🔧 Check if request has system token
  */
-export const hasRefreshToken = (req: Request): boolean => {
-    return req.tokenType === 'refresh';
+export const hasSystemToken = (req: Request): boolean => {
+    return req.tokenType === 'system';
 };
 
 /**
@@ -226,7 +236,7 @@ export const hasRefreshToken = (req: Request): boolean => {
  */
 export const checkTokenExpiry = (thresholdMinutes: number = 15) => {
     return (req: Request, res: Response, next: NextFunction): void => {
-        if (req.authUser && req.authToken) {
+        if ((req.authUser || req.authSystem) && req.authToken) {
             const decoded = decodeJWT(req.authToken);
             if (decoded && decoded.exp) {
                 const currentTime = Math.floor(Date.now() / 1000);

@@ -1,11 +1,21 @@
 import jwt from 'jsonwebtoken';
-import { JWTPayload, JWTOptions, DecodedToken } from '../interfaces';
+import { 
+    UserTokenPayload, 
+    SystemTokenPayload, 
+    JWTPayload, 
+    JWTOptions, 
+    DecodedToken,
+    DecodedUserToken,
+    DecodedSystemToken,
+    isUserToken,
+    isSystemToken
+} from '../interfaces';
 import { ENV } from '../config/constants';
 import HttpError from './httpError';
 
 /**
- * 🔐 Token Utilities
- * Simple and focused JWT token management with access/refresh token support
+ * 🔐 Simplified Token Utilities
+ * JWT token management for frontend user tokens and internal system tokens
  */
 
 /**
@@ -15,7 +25,7 @@ import HttpError from './httpError';
  * @returns Signed JWT token string
  */
 export const generateJWT = (
-    payload: JWTPayload = {},
+    payload: JWTPayload,
     options: JWTOptions = {}
 ): string => {
     if (!ENV.JWT.SECRET) {
@@ -23,7 +33,7 @@ export const generateJWT = (
     }
 
     const finalOptions: JWTOptions = {
-        expiresIn: ENV.JWT.EXPIRES_IN,
+        expiresIn: ENV.JWT.EXPIRES_IN || '1h',
         algorithm: 'HS256',
         ...options,
     };
@@ -36,63 +46,30 @@ export const generateJWT = (
 };
 
 /**
- * 🎯 Generate Access Token (short-lived for API access)
+ * 👤 Generate User Token (for frontend React app)
  * @param payload - User data to encode
- * @returns Access token string
+ * @returns User token string
  */
-export const generateAccessToken = (payload: Omit<JWTPayload, 'tokenType'>): string => {
-    const accessPayload: JWTPayload = {
-        ...payload,
-        tokenType: 'access',
-    };
-
-    // Use service-specific expiry for service tokens, otherwise use default
-    const isServiceToken = payload.role === 'service';
-    const expiresIn = isServiceToken 
-        ? (ENV.JWT.SERVICE_EXPIRES_IN || '1h')
-        : (ENV.JWT.EXPIRES_IN || '15m');
-
-    return generateJWT(accessPayload, {
-        expiresIn,
+export const generateUserToken = (payload: UserTokenPayload): string => {
+    return generateJWT(payload, {
+        expiresIn: ENV.JWT.EXPIRES_IN || '1h',
     });
 };
 
 /**
- * 🔄 Generate Refresh Token (long-lived for token renewal)
- * @param payload - User data to encode (minimal data)
- * @returns Refresh token string
+ * 🔧 Generate System Token (for service-to-service communication)
+ * @param serviceName - Name of the service
+ * @returns System token string
  */
-export const generateRefreshToken = (payload: Pick<JWTPayload, 'id' | 'email'>): string => {
-    const refreshPayload: JWTPayload = {
-        id: payload.id,
-        email: payload.email,
-        tokenType: 'refresh',
+export const generateSystemToken = (serviceName: string): string => {
+    const systemPayload: SystemTokenPayload = {
+        system: true,
+        service: serviceName,
     };
 
-    return generateJWT(refreshPayload, {
-        expiresIn: '7d', // Long-lived
+    return generateJWT(systemPayload, {
+        expiresIn: '24h', // Long-lived for services
     });
-};
-
-/**
- * 🎫 Generate Token Pair (access + refresh tokens)
- * @param payload - User data for tokens
- * @returns Object with both tokens and expiry info
- */
-export const generateTokenPair = (payload: Omit<JWTPayload, 'tokenType'>) => {
-    const accessToken = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken({
-        id: payload.id,
-        email: payload.email,
-    });
-
-    return {
-        accessToken,
-        refreshToken,
-        tokenType: 'Bearer' as const,
-        expiresIn: ENV.JWT.EXPIRES_IN || '15m',
-        scope: 'api_access',
-    };
 };
 
 /**
@@ -110,7 +87,14 @@ export const validateToken = (token: string): DecodedToken => {
     }
 
     try {
-        return jwt.verify(token, ENV.JWT.SECRET) as DecodedToken;
+        const decoded = jwt.verify(token, ENV.JWT.SECRET) as DecodedToken;
+        
+        // Validate token structure
+        if (!isUserToken(decoded) && !isSystemToken(decoded)) {
+            throw HttpError.unauthorized('Invalid token structure');
+        }
+        
+        return decoded;
     } catch (error) {
         const jwtError = error as jwt.JsonWebTokenError;
 
@@ -127,52 +111,35 @@ export const validateToken = (token: string): DecodedToken => {
 };
 
 /**
- * 🏢 Generate Service Token (for microservice-to-microservice communication)
- * @param serviceName - Name of the service
- * @param scope - Access scope for the service
- * @returns Service access token string
+ * ✅ Validate User Token specifically
+ * @param token - User token to validate
+ * @returns Decoded user token payload
  */
-export const generateServiceToken = (
-    serviceName: string, 
-    scope: string = 'api:read',
-    options: Partial<JWTOptions> = {}
-): string => {
-    const servicePayload = {
-        id: serviceName,
-        email: `${serviceName}@internal`,
-        role: 'service',
-        service: serviceName,
-        scope,
-    };
-
-    return generateAccessToken(servicePayload);
-};
-
-/**
- * ✅ Validate Access Token specifically
- * @param token - Access token to validate
- * @returns Decoded access token payload
- */
-export const validateAccessToken = (token: string): DecodedToken => {
+export const validateUserToken = (token: string): DecodedUserToken => {
     const decoded = validateToken(token);
     
-    if (decoded.tokenType !== 'access') {
-        throw HttpError.unauthorized('Invalid token type - access token required');
+    if (!isUserToken(decoded)) {
+        throw HttpError.unauthorized('Invalid token type - user token required');
+    }
+    
+    // Ensure userId field is present
+    if (!decoded.userId) {
+        throw HttpError.unauthorized('Token missing required userId field');
     }
     
     return decoded;
 };
 
 /**
- * 🔄 Validate Refresh Token specifically
- * @param token - Refresh token to validate
- * @returns Decoded refresh token payload
+ * 🔧 Validate System Token specifically
+ * @param token - System token to validate
+ * @returns Decoded system token payload
  */
-export const validateRefreshToken = (token: string): DecodedToken => {
+export const validateSystemToken = (token: string): DecodedSystemToken => {
     const decoded = validateToken(token);
     
-    if (decoded.tokenType !== 'refresh') {
-        throw HttpError.unauthorized('Invalid token type - refresh token required');
+    if (!isSystemToken(decoded)) {
+        throw HttpError.unauthorized('Invalid token type - system token required');
     }
     
     return decoded;
@@ -222,45 +189,19 @@ export const extractTokenFromRequest = (req: any): string | undefined => {
 };
 
 /**
- * Generate service-to-service access token with specific scope
- * @param serviceName - Name of the service
- * @param scope - Access scope for the service
- * @returns Service access token string
- */
-export const createServiceToken = (serviceName: string, scope: string): string => {
-    return generateServiceToken(serviceName, scope);
-};
-
-/**
  * Add Bearer token to request headers (for API clients)
  * @param headers - Existing headers object
- * @param token - Token to add (if not provided, generates service token)
- * @param serviceName - Service name for auto-generated token
- * @param scope - Scope for auto-generated token
+ * @param token - Token to add
  * @returns Headers with Authorization bearer token
  */
 export const addBearerToken = (
     headers: Record<string, string> = {},
-    token?: string,
-    serviceName?: string,
-    scope?: string
+    token: string
 ): Record<string, string> => {
-    if (token) {
-        return {
-            ...headers,
-            Authorization: `Bearer ${token}`
-        };
-    }
-    
-    if (serviceName && scope) {
-        const serviceToken = generateServiceToken(serviceName, scope);
-        return {
-            ...headers,
-            Authorization: `Bearer ${serviceToken}`
-        };
-    }
-    
-    return headers;
+    return {
+        ...headers,
+        Authorization: `Bearer ${token}`
+    };
 };
 
 /**

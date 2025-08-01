@@ -1,21 +1,11 @@
 import jwt from 'jsonwebtoken';
-import { 
-    UserTokenPayload, 
-    SystemTokenPayload, 
-    JWTPayload, 
-    JWTOptions, 
-    DecodedToken,
-    DecodedUserToken,
-    DecodedSystemToken,
-    isUserToken,
-    isSystemToken
-} from '../interfaces';
+import { JWTPayload, JWTOptions, DecodedToken } from '../interfaces';
 import { ENV } from '../config/constants';
 import HttpError from './httpError';
 
 /**
- * 🔐 Simplified Token Utilities
- * JWT token management for frontend user tokens and internal system tokens
+ * 🔐 Simple Token Utilities
+ * Basic JWT token management - validates signature only
  */
 
 /**
@@ -46,30 +36,13 @@ export const generateJWT = (
 };
 
 /**
- * 👤 Generate User Token (for frontend React app)
- * @param payload - User data to encode
- * @returns User token string
+ * 🎯 Generate Token with Custom Payload
+ * @param payload - Any data to encode in the JWT
+ * @param expiresIn - Token expiry (default: 1h)
+ * @returns JWT token string
  */
-export const generateUserToken = (payload: UserTokenPayload): string => {
-    return generateJWT(payload, {
-        expiresIn: ENV.JWT.EXPIRES_IN || '1h',
-    });
-};
-
-/**
- * 🔧 Generate System Token (for service-to-service communication)
- * @param serviceName - Name of the service
- * @returns System token string
- */
-export const generateSystemToken = (serviceName: string): string => {
-    const systemPayload: SystemTokenPayload = {
-        system: true,
-        service: serviceName,
-    };
-
-    return generateJWT(systemPayload, {
-        expiresIn: '24h', // Long-lived for services
-    });
+export const generateToken = (payload: JWTPayload, expiresIn: string = '1h'): string => {
+    return generateJWT(payload, { expiresIn });
 };
 
 /**
@@ -87,14 +60,7 @@ export const validateToken = (token: string): DecodedToken => {
     }
 
     try {
-        const decoded = jwt.verify(token, ENV.JWT.SECRET) as DecodedToken;
-        
-        // Validate token structure
-        if (!isUserToken(decoded) && !isSystemToken(decoded)) {
-            throw HttpError.unauthorized('Invalid token structure');
-        }
-        
-        return decoded;
+        return jwt.verify(token, ENV.JWT.SECRET) as DecodedToken;
     } catch (error) {
         const jwtError = error as jwt.JsonWebTokenError;
 
@@ -108,41 +74,6 @@ export const validateToken = (token: string): DecodedToken => {
 
         throw HttpError.unauthorized('Invalid token');
     }
-};
-
-/**
- * ✅ Validate User Token specifically
- * @param token - User token to validate
- * @returns Decoded user token payload
- */
-export const validateUserToken = (token: string): DecodedUserToken => {
-    const decoded = validateToken(token);
-    
-    if (!isUserToken(decoded)) {
-        throw HttpError.unauthorized('Invalid token type - user token required');
-    }
-    
-    // Ensure userId field is present
-    if (!decoded.userId) {
-        throw HttpError.unauthorized('Token missing required userId field');
-    }
-    
-    return decoded;
-};
-
-/**
- * 🔧 Validate System Token specifically
- * @param token - System token to validate
- * @returns Decoded system token payload
- */
-export const validateSystemToken = (token: string): DecodedSystemToken => {
-    const decoded = validateToken(token);
-    
-    if (!isSystemToken(decoded)) {
-        throw HttpError.unauthorized('Invalid token type - system token required');
-    }
-    
-    return decoded;
 };
 
 /**

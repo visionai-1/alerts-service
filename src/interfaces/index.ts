@@ -20,30 +20,12 @@ export interface ApiErrorInterface {
 }
 
 /**
- * Frontend User Token Payload
- * Token structure for frontend React application
+ * Simple JWT Payload Interface
+ * Accepts any payload structure - just validates JWT signature
  */
-export interface UserTokenPayload {
-    userId: string;
-    role: string;
+export interface JWTPayload {
     [key: string]: any;
 }
-
-/**
- * Internal System Token Payload  
- * Token structure for service-to-service communication
- */
-export interface SystemTokenPayload {
-    system: true;
-    service: string;
-    [key: string]: any;
-}
-
-/**
- * Combined JWT Payload Interface
- * Union type for both user and system tokens
- */
-export type JWTPayload = UserTokenPayload | SystemTokenPayload;
 
 /**
  * JWT Options Interface
@@ -58,36 +40,17 @@ export interface JWTOptions {
 }
 
 /**
- * Decoded User Token Interface
- * Represents a decoded frontend user JWT token
- */
-export interface DecodedUserToken extends UserTokenPayload {
-    iat: number;
-    exp: number;
-    iss?: string;
-    aud?: string;
-    sub?: string;
-    jti?: string;
-}
-
-/**
- * Decoded System Token Interface
- * Represents a decoded internal system JWT token
- */
-export interface DecodedSystemToken extends SystemTokenPayload {
-    iat: number;
-    exp: number;
-    iss?: string;
-    aud?: string;
-    sub?: string;
-    jti?: string;
-}
-
-/**
  * Decoded Token Interface
- * Union type for decoded tokens
+ * Represents any decoded JWT token with standard claims
  */
-export type DecodedToken = DecodedUserToken | DecodedSystemToken;
+export interface DecodedToken extends JWTPayload {
+    iat: number;
+    exp: number;
+    iss?: string;
+    aud?: string;
+    sub?: string;
+    jti?: string;
+}
 
 /**
  * User Interface
@@ -111,17 +74,6 @@ export interface TokenResponse {
     token: string;
     expiresIn: string;
 }
-
-/**
- * Type Guards for Token Validation
- */
-export const isUserToken = (token: DecodedToken): token is DecodedUserToken => {
-    return 'userId' in token && typeof token.userId === 'string';
-};
-
-export const isSystemToken = (token: DecodedToken): token is DecodedSystemToken => {
-    return 'system' in token && token.system === true && 'service' in token;
-};
 
 /**
  * API Response Interface

@@ -1,28 +1,24 @@
 import { Request, Response, NextFunction } from 'express';
 import { 
     extractToken, 
-    validateToken,
-    validateUserToken, 
-    validateSystemToken, 
+    validateToken, 
     isTokenExpired, 
     decodeJWT 
 } from '../utils/token';
-import { DecodedUserToken, DecodedSystemToken, isUserToken, isSystemToken } from '../interfaces';
+import { DecodedToken } from '../interfaces';
 import HttpError from '../utils/httpError';
 
 /**
- * 🔐 Simplified Authentication Middlewares
- * Support for frontend user tokens and internal system tokens
+ * 🔐 Simple Authentication Middleware
+ * Just validates JWT signature - accepts any token payload structure
  */
 
 // Extend Request interface to include auth data
 declare global {
     namespace Express {
         interface Request {
-            authUser?: DecodedUserToken;
-            authSystem?: DecodedSystemToken;
+            auth?: DecodedToken;
             authToken?: string;
-            tokenType?: 'user' | 'system';
         }
     }
 }
@@ -54,84 +50,51 @@ const extractTokenFromRequest = (req: Request): string | null => {
 };
 
 /**
- * 👤 User Token Authentication Middleware
- * Validates frontend user tokens (React app)
- * Use for: User-facing API endpoints
+ * 🔐 Simple Authentication Middleware
+ * Validates any JWT token signed with JWT_SECRET
+ * Use for: Any endpoint that requires authentication
  */
-export const requireUserAuth = (req: Request, res: Response, next: NextFunction): void => {
+export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
     try {
         const token = extractTokenFromRequest(req);
         
         if (!token) {
-            throw HttpError.unauthorized('User authentication token required');
+            throw HttpError.unauthorized('Authentication token required');
         }
 
-        // Validate as user token
-        const decoded = validateUserToken(token);
+        // Just validate JWT signature - accept any payload structure
+        const decoded = validateToken(token);
         
-        // Add user info to request object
-        req.authUser = decoded;
+        // Add auth info to request object
+        req.auth = decoded;
         req.authToken = token;
-        req.tokenType = 'user';
         
         next();
     } catch (error) {
         if (error instanceof HttpError) {
             error.sendError(res);
         } else {
-            HttpError.unauthorized('Invalid user token').sendError(res);
+            HttpError.unauthorized('Invalid token').sendError(res);
         }
     }
 };
 
 /**
- * 🔧 System Token Authentication Middleware
- * Validates internal system tokens (service-to-service)
- * Use for: Internal API endpoints like /alerts/:id/evaluate
+ * 🔓 Optional Authentication Middleware
+ * Adds auth data if token is present and valid
+ * Use for: Public endpoints that benefit from auth context
  */
-export const requireSystemAuth = (req: Request, res: Response, next: NextFunction): void => {
-    try {
-        const token = extractTokenFromRequest(req);
-        
-        if (!token) {
-            throw HttpError.unauthorized('System authentication token required');
-        }
-
-        // Validate as system token
-        const decoded = validateSystemToken(token);
-        
-        // Add system info to request object
-        req.authSystem = decoded;
-        req.authToken = token;
-        req.tokenType = 'system';
-        
-        next();
-    } catch (error) {
-        if (error instanceof HttpError) {
-            error.sendError(res);
-        } else {
-            HttpError.unauthorized('Invalid system token').sendError(res);
-        }
-    }
-};
-
-/**
- * 🔓 Optional User Token Middleware
- * Adds user data if user token is present and valid
- * Use for: Public endpoints that benefit from user context
- */
-export const optionalUserAuth = (req: Request, res: Response, next: NextFunction): void => {
+export const optionalAuth = (req: Request, res: Response, next: NextFunction): void => {
     try {
         const token = extractTokenFromRequest(req);
         
         if (token && !isTokenExpired(token)) {
             try {
-                const decoded = validateUserToken(token);
-                req.authUser = decoded;
+                const decoded = validateToken(token);
+                req.auth = decoded;
                 req.authToken = token;
-                req.tokenType = 'user';
             } catch {
-                // Invalid token, but it's optional so we continue without user
+                // Invalid token, but it's optional so we continue without auth
             }
         }
         
@@ -143,61 +106,11 @@ export const optionalUserAuth = (req: Request, res: Response, next: NextFunction
 };
 
 /**
- * 🔐 General Authentication Middleware
- * Accepts both user and system tokens
- * Use for: Endpoints that can be accessed by both frontend users and internal services
+ * 🔍 Get Auth Data Helper
+ * Extract auth data from request (for use in controllers)
  */
-export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
-    try {
-        const token = extractTokenFromRequest(req);
-        
-        if (!token) {
-            throw HttpError.unauthorized('Authentication token required');
-        }
-
-        // Check if token is expired before validation
-        if (isTokenExpired(token)) {
-            throw HttpError.unauthorized('Token has expired');
-        }
-
-        // Validate token and determine type
-        const decoded = validateToken(token);
-        
-        if (isUserToken(decoded)) {
-            req.authUser = decoded;
-            req.tokenType = 'user';
-        } else if (isSystemToken(decoded)) {
-            req.authSystem = decoded;
-            req.tokenType = 'system';
-        } else {
-            throw HttpError.unauthorized('Invalid token type');
-        }
-        
-        req.authToken = token;
-        next();
-    } catch (error) {
-        if (error instanceof HttpError) {
-            error.sendError(res);
-        } else {
-            HttpError.unauthorized('Authentication failed').sendError(res);
-        }
-    }
-};
-
-/**
- * 👤 Get User Helper
- * Extract user from request (for use in controllers)
- */
-export const getUser = (req: Request): DecodedUserToken | null => {
-    return req.authUser || null;
-};
-
-/**
- * 🔧 Get System Helper
- * Extract system info from request (for use in controllers)
- */
-export const getSystem = (req: Request): DecodedSystemToken | null => {
-    return req.authSystem || null;
+export const getAuth = (req: Request): DecodedToken | null => {
+    return req.auth || null;
 };
 
 /**
@@ -209,25 +122,10 @@ export const getToken = (req: Request): string | null => {
 };
 
 /**
- * 🏷️ Get Token Type Helper
- * Get the type of token used in the request
+ * ✅ Check if request is authenticated
  */
-export const getTokenType = (req: Request): 'user' | 'system' | null => {
-    return req.tokenType || null;
-};
-
-/**
- * ✅ Check if request has user token
- */
-export const hasUserToken = (req: Request): boolean => {
-    return req.tokenType === 'user';
-};
-
-/**
- * 🔧 Check if request has system token
- */
-export const hasSystemToken = (req: Request): boolean => {
-    return req.tokenType === 'system';
+export const isAuthenticated = (req: Request): boolean => {
+    return !!req.auth;
 };
 
 /**
@@ -236,7 +134,7 @@ export const hasSystemToken = (req: Request): boolean => {
  */
 export const checkTokenExpiry = (thresholdMinutes: number = 15) => {
     return (req: Request, res: Response, next: NextFunction): void => {
-        if ((req.authUser || req.authSystem) && req.authToken) {
+        if (req.auth && req.authToken) {
             const decoded = decodeJWT(req.authToken);
             if (decoded && decoded.exp) {
                 const currentTime = Math.floor(Date.now() / 1000);
@@ -246,10 +144,12 @@ export const checkTokenExpiry = (thresholdMinutes: number = 15) => {
                 if (timeUntilExpiry <= thresholdSeconds) {
                     res.setHeader('X-Token-Expiry-Warning', 'true');
                     res.setHeader('X-Token-Expires-In', timeUntilExpiry.toString());
-                    res.setHeader('X-Token-Type', req.tokenType || 'unknown');
                 }
             }
         }
         next();
     };
 };
+
+// Backwards compatibility aliases
+export const requireUserAuth = requireAuth;

@@ -17,69 +17,6 @@ export interface LocationQuery {
     city?: string;
 }
 
-// Tomorrow.io API response interfaces
-export interface TomorrowRealtimeResponse {
-    data: {
-        time: string;
-        values: {
-            temperature: number;
-            humidity: number;
-            windSpeed: number;
-            windDirection: number;
-            precipitationIntensity: number;
-            precipitationProbability: number;
-            visibility: number;
-            uvIndex: number;
-            cloudCover: number;
-            pressureSurfaceLevel: number;
-            weatherCode: number;
-        };
-    };
-    location: {
-        lat: number;
-        lon: number;
-    };
-}
-
-export interface TomorrowForecastResponse {
-    timelines: {
-        timestep: string;
-        intervals: Array<{
-            startTime: string;
-            values: {
-                temperature: number;
-                humidity: number;
-                windSpeed: number;
-                windDirection: number;
-                precipitationIntensity?: number;
-                precipitationProbability?: number;
-                visibility: number;
-                uvIndex: number;
-                cloudCover: number;
-                pressureSurfaceLevel: number;
-                weatherCode: number;
-            };
-        }>;
-    }[];
-    location: {
-        lat: number;
-        lon: number;
-    };
-}
-
-export interface TomorrowLocationSearchResponse {
-    features: Array<{
-        geometry: {
-            coordinates: [number, number]; // [lon, lat]
-        };
-        properties: {
-            name?: string;
-            full_name?: string;
-            country?: string;
-        };
-    }>;
-}
-
 export interface WeatherData {
     location: Location;
     timestamp?: Date | string;

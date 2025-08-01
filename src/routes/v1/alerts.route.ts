@@ -20,7 +20,7 @@ const router = express.Router();
  */
 router.post('/', validateJoi({ body: alertSchema }), async (req, res, next) => {
     try {
-        Logging.info("Enter create alert route");
+        Logging.info('Creating new alert in database');
         const alertData: CreateAlertRequest = req.body;
         
         // Create new alert using mongoose model
@@ -33,7 +33,7 @@ router.post('/', validateJoi({ body: alertSchema }), async (req, res, next) => {
             message: 'Weather alert created successfully'
         };
 
-        Logging.info("Sending resoonse from create alert route");
+        Logging.info("Sending response from create alert route");
         res.status(201).json(response);
     } catch (error) {
         // Handle mongoose validation errors
@@ -51,7 +51,7 @@ router.post('/', validateJoi({ body: alertSchema }), async (req, res, next) => {
  */
 router.get('/', validateJoi({ query: alertQuerySchema }), async (req, res, next) => {
     try {
-        Logging.info("Enter get alerts route");
+        Logging.info("Fetching alerts from database");
         const { type, parameter, limit, page, sortBy, sortOrder } = req.query;
         
         // Build query filters
@@ -88,7 +88,7 @@ router.get('/', validateJoi({ query: alertQuerySchema }), async (req, res, next)
             pages: Math.ceil(total / Number(limit))
         };
 
-        Logging.info("Sending resoonse from get alerts route");
+        Logging.info("Sending response from get alerts route");
         res.json(response);
     } catch (error) {
         next(error);
@@ -101,7 +101,7 @@ router.get('/', validateJoi({ query: alertQuerySchema }), async (req, res, next)
  */
 router.get('/:id', async (req, res, next) => {
     try {
-        Logging.info("Enter get alert by id route");
+        Logging.info("Fetching alert by ID from database");
         const { id } = req.params;
         
         const alert = await Alert.findById(id).lean();
@@ -115,7 +115,7 @@ router.get('/:id', async (req, res, next) => {
             data: alert
         };
 
-        Logging.info("Sending resoonse from get alert by id route");
+        Logging.info("Sending response from get alert by id route");
         res.json(response);
     } catch (error) {
         // Handle invalid ObjectId format
@@ -132,7 +132,7 @@ router.get('/:id', async (req, res, next) => {
  */
 router.put('/:id', validateJoi({ body: alertUpdateSchema }), async (req, res, next) => {
     try {
-        Logging.info("Enter update alert route");
+        Logging.info("Updating alert in database");
         const { id } = req.params;
         const updateData = req.body;
         
@@ -152,7 +152,7 @@ router.put('/:id', validateJoi({ body: alertUpdateSchema }), async (req, res, ne
             message: 'Alert updated successfully'
         };
 
-        Logging.info("Sending resoonse from update alert route");
+        Logging.info("Sending response from update alert route");
         res.json(response);
     } catch (error) {
         // Handle mongoose validation errors
@@ -173,7 +173,7 @@ router.put('/:id', validateJoi({ body: alertUpdateSchema }), async (req, res, ne
  */
 router.delete('/:id', async (req, res, next) => {
     try {
-        Logging.info("Enter delete alert route");
+        Logging.info("Deleting alert from database");
         const { id } = req.params;
         
         const deletedAlert = await Alert.findByIdAndDelete(id).lean();
@@ -188,7 +188,7 @@ router.delete('/:id', async (req, res, next) => {
             message: 'Alert deleted successfully'
         };
 
-        Logging.info("Sending resoonse from delete alert route");
+        Logging.info("Sending response from delete alert route");
         res.json(response);
     } catch (error) {
         // Handle invalid ObjectId format

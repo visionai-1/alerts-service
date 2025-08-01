@@ -120,22 +120,6 @@ export const extractTokenFromRequest = (req: any): string | undefined => {
 };
 
 /**
- * Add Bearer token to request headers (for API clients)
- * @param headers - Existing headers object
- * @param token - Token to add
- * @returns Headers with Authorization bearer token
- */
-export const addBearerToken = (
-    headers: Record<string, string> = {},
-    token: string
-): Record<string, string> => {
-    return {
-        ...headers,
-        Authorization: `Bearer ${token}`
-    };
-};
-
-/**
  * Decode JWT token without verification
  * @param token - JWT token to decode
  * @returns Decoded token payload or null

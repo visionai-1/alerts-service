@@ -2,7 +2,6 @@ import express from 'express';
 import { CreateAlertRequest, AlertResponse } from '../../interfaces/weather';
 import { alertSchema, alertUpdateSchema, alertQuerySchema } from '../../schemas/alertSchemas';
 import { validateJoi } from '../../middlewares/validations';
-import { requireAuth, getAuth, getToken } from '../../middlewares/auth';
 import { Alert } from '../../models/Alert';
 import HttpError from '../../utils/httpError';
 
@@ -18,7 +17,7 @@ const router = express.Router();
  * POST /api/v1/alerts
  * Create a new weather alert
  */
-router.post('/', requireAuth, validateJoi({ body: alertSchema }), async (req, res, next) => {
+router.post('/', validateJoi({ body: alertSchema }), async (req, res, next) => {
     try {
         const alertData: CreateAlertRequest = req.body;
         
@@ -47,7 +46,7 @@ router.post('/', requireAuth, validateJoi({ body: alertSchema }), async (req, re
  * GET /api/v1/alerts
  * Retrieve weather alerts with optional filtering and pagination
  */
-router.get('/', requireAuth, validateJoi({ query: alertQuerySchema }), async (req, res, next) => {
+router.get('/', validateJoi({ query: alertQuerySchema }), async (req, res, next) => {
     try {
         const { type, parameter, limit, page, sortBy, sortOrder } = req.query;
         
@@ -95,7 +94,7 @@ router.get('/', requireAuth, validateJoi({ query: alertQuerySchema }), async (re
  * GET /api/v1/alerts/:id
  * Retrieve a specific weather alert by ID
  */
-router.get('/:id', requireAuth, async (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
         
@@ -124,7 +123,7 @@ router.get('/:id', requireAuth, async (req, res, next) => {
  * PUT /api/v1/alerts/:id
  * Update a weather alert
  */
-router.put('/:id', requireAuth, validateJoi({ body: alertUpdateSchema }), async (req, res, next) => {
+router.put('/:id', validateJoi({ body: alertUpdateSchema }), async (req, res, next) => {
     try {
         const { id } = req.params;
         const updateData = req.body;
@@ -163,7 +162,7 @@ router.put('/:id', requireAuth, validateJoi({ body: alertUpdateSchema }), async 
  * DELETE /api/v1/alerts/:id
  * Delete a weather alert
  */
-router.delete('/:id', requireAuth, async (req, res, next) => {
+router.delete('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
         

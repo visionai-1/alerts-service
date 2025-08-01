@@ -19,9 +19,6 @@ export const ENV = {
     MONGO_CLUSTER: process.env.MONGO_CLUSTER,
     MONGO_DATABASE: process.env.MONGO_DATABASE,
 
-    // Tomorrow.io API Configuration
-    TOMORROW_API_KEY: process.env.TOMORROW_API_KEY,
-    WEATHER_API_BASE_URL: process.env.WEATHER_API_BASE_URL || 'http://localhost:3000/v1/weather',
 
     // JWT Configuration
     JWT: {

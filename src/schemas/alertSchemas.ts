@@ -14,13 +14,13 @@ export const locationSchema = Joi.object({
     // Either coordinates (lat + lon) or city must be provided
     const hasCoordinates = value.lat !== undefined && value.lon !== undefined;
     const hasCity = value.city !== undefined;
-    
+
     if (!hasCoordinates && !hasCity) {
-        return helpers.error('location.missing', { 
-            message: 'Either coordinates (lat + lon) or city must be provided' 
+        return helpers.error('location.missing', {
+            message: 'Either coordinates (lat + lon) or city must be provided'
         });
     }
-    
+
     return value;
 });
 
@@ -30,11 +30,11 @@ export const alertSchema = Joi.object({
         .messages({
             'any.only': 'Type must be either "realtime" or "forecast"'
         }),
-    
+
     parameter: Joi.string().required()
         .valid(
             'temperature',
-            'humidity', 
+            'humidity',
             'windSpeed',
             'windDirection',
             'precipitation.intensity',
@@ -48,19 +48,19 @@ export const alertSchema = Joi.object({
         .messages({
             'any.only': 'Parameter must be a valid weather parameter'
         }),
-    
+
     operator: Joi.string().valid('>', '<', '>=', '<=', '==', '!=').required()
         .messages({
             'any.only': 'Operator must be one of: >, <, >=, <=, ==, !='
         }),
-    
+
     threshold: Joi.number().required()
         .messages({
             'number.base': 'Threshold must be a number'
         }),
-    
+
     location: locationSchema.required(),
-    
+
     timestep: Joi.string().valid('1h', '1d').optional()
         .when('type', {
             is: 'forecast',
@@ -71,22 +71,49 @@ export const alertSchema = Joi.object({
                 'any.unknown': 'Timestep is only allowed for forecast alerts'
             })
         }),
-    
+
     name: Joi.string().trim().min(1).max(100).optional(),
     description: Joi.string().trim().max(500).optional(),
 });
 
 // Alert update schema (partial alert without required fields)
 export const alertUpdateSchema = Joi.object({
-    name: Joi.string().trim().min(1).max(100).optional(),
-    description: Joi.string().trim().max(500).optional(),
-    threshold: Joi.number().optional(),
-    operator: Joi.string().valid('>', '<', '>=', '<=', '==', '!=').optional(),
-    // Don't allow updating type, parameter, location, timestep after creation
+    lastState: Joi.string().trim().min(1).max(100).required(),
 }).min(1).messages({
-    'object.min': 'At least one field must be provided for update'
+    'object.min': 'At least lastState field must be provided for update'
 });
 
+// URL parameter validation for MongoDB ObjectId
+export const alertParamsSchema = Joi.object({
+    id: Joi.string().required()
+        .messages({
+            'string.pattern.base': 'ID must be a valid MongoDB ObjectId (24 characters hexadecimal)'
+        })
+});
+
+// Bulk update schema for updating multiple alerts
+export const alertBulkUpdateSchema = Joi.object({
+    filter: Joi.object({
+        type: Joi.string().valid('realtime', 'forecast').optional(),
+        parameter: Joi.string().optional(),
+        ids: Joi.array().items(
+            Joi.string()
+                .regex(/^[0-9a-fA-F]{24}$/)
+                .messages({
+                    'string.pattern.base': 'Each ID must be a valid MongoDB ObjectId'
+                })
+        ).min(1).max(100).optional()
+    }).or('type', 'parameter', 'ids').optional()
+        .messages({
+            'object.missing': 'At least one filter criteria (type, parameter, or ids) must be provided'
+        }),
+
+    update: Joi.object({
+        lastState: Joi.string().min(1).max(100).optional(),
+        lastEvaluated: Joi.date().optional(),
+        evaluatedBy: Joi.string().min(1).max(100).optional()
+    }).optional()
+});
 // Query parameters for listing alerts
 export const alertQuerySchema = Joi.object({
     type: Joi.string().valid('realtime', 'forecast').optional(),

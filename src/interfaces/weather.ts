@@ -8,6 +8,7 @@ export interface Location {
     lat?: number;
     lon?: number;
     name?: string;
+    city?: string;
     country?: string;
 }
 
@@ -107,5 +108,17 @@ export interface CreateAlertRequest {
 export interface AlertResponse {
     success: boolean;
     data?: WeatherAlert | WeatherAlert[];
+    message?: string;
+}
+
+export interface BulkUpdateResponse {
+    success: boolean;
+    data?: {
+        matchedCount: number;
+        modifiedCount: number;
+        acknowledged: boolean;
+        filter: any;
+        update: any;
+    };
     message?: string;
 } 

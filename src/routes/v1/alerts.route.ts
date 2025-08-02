@@ -1,6 +1,6 @@
 import express from 'express';
-import { CreateAlertRequest, AlertResponse } from '../../interfaces/weather';
-import { alertSchema, alertUpdateSchema, alertQuerySchema } from '../../schemas/alertSchemas';
+import { CreateAlertRequest, AlertResponse, BulkUpdateResponse } from '../../interfaces/weather';
+import { alertSchema, alertUpdateSchema, alertQuerySchema, alertParamsSchema, alertBulkUpdateSchema } from '../../schemas/alertSchemas';
 import { validateJoi } from '../../middlewares/validations';
 import { Alert } from '../../models/Alert';
 import HttpError from '../../utils/httpError';
@@ -99,7 +99,7 @@ router.get('/', validateJoi({ query: alertQuerySchema }), async (req, res, next)
  * GET /api/v1/alerts/:id
  * Retrieve a specific weather alert by ID
  */
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validateJoi({ params: alertParamsSchema }), async (req, res, next) => {
     try {
         Logging.info("Fetching alert by ID from database");
         const { id } = req.params;
@@ -130,7 +130,7 @@ router.get('/:id', async (req, res, next) => {
  * PUT /api/v1/alerts/:id
  * Update a weather alert
  */
-router.put('/:id', validateJoi({ body: alertUpdateSchema }), async (req, res, next) => {
+router.put('/:id', validateJoi({ params: alertParamsSchema, body: alertUpdateSchema }), async (req, res, next) => {
     try {
         Logging.info("Updating alert in database");
         const { id } = req.params;
@@ -171,7 +171,7 @@ router.put('/:id', validateJoi({ body: alertUpdateSchema }), async (req, res, ne
  * DELETE /api/v1/alerts/:id
  * Delete a weather alert
  */
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validateJoi({ params: alertParamsSchema }), async (req, res, next) => {
     try {
         Logging.info("Deleting alert from database");
         const { id } = req.params;
@@ -195,6 +195,91 @@ router.delete('/:id', async (req, res, next) => {
         if (error.name === 'CastError') {
             throw HttpError.badRequest('Invalid alert ID format');
         }
+        next(error);
+    }
+});
+
+/**
+ * PUT /api/v1/alerts/bulk-update
+ * Update multiple alerts at once using updateMany
+ * Best practices: atomic operations, proper filtering, transaction-like behavior
+ */
+router.patch('/bulk-update', validateJoi({ body: alertBulkUpdateSchema }), async (req, res, next) => {
+    try {
+        Logging.info("Starting bulk update operation");
+        const { filter, update } = req.body;
+        
+        // Build MongoDB filter query
+        const mongoFilter: any = {};
+        
+        // Filter by specific IDs
+        if (filter.ids && filter.ids.length > 0) {
+            mongoFilter._id = { $in: filter.ids };
+        }
+        
+        // Filter by alert type
+        if (filter.type) {
+            mongoFilter.type = filter.type;
+        }
+        
+        // Filter by parameter
+        if (filter.parameter) {
+            mongoFilter.parameter = filter.parameter;
+        }
+        
+        // Prepare update data with automatic timestamp
+        const updateData = {
+            ...update,
+            lastEvaluated: update.lastEvaluated || new Date(),
+            updatedAt: new Date()
+        };
+        
+        Logging.info(`Executing bulk update with filter: ${JSON.stringify(mongoFilter)}`);
+        
+        // Use updateMany for atomic bulk update with best practices
+        const result = await Alert.updateMany(
+            mongoFilter,
+            { $set: updateData },
+            { 
+                runValidators: true,  // Run schema validation
+                upsert: false,        // Don't create new documents
+                multi: true           // Update multiple documents
+            }
+        );
+        
+        // Check if any documents were found
+        if (result.matchedCount === 0) {
+            throw HttpError.notFound('No alerts found matching the specified criteria'); 
+        }
+        
+        // Prepare response with detailed results
+        const response: BulkUpdateResponse = {
+            success: true,
+            data: {
+                matchedCount: result.matchedCount,
+                modifiedCount: result.modifiedCount,
+                acknowledged: result.acknowledged,
+                filter: filter,
+                update: updateData
+            },
+            message: `Bulk update completed: ${result.modifiedCount} of ${result.matchedCount} alerts updated`
+        };
+        
+        Logging.info(`Bulk update completed: ${result.modifiedCount}/${result.matchedCount} alerts updated`);
+        res.json(response);
+        
+    } catch (error) {
+        // Handle validation errors
+        if (error.name === 'ValidationError') {
+            const errorMessages = Object.values(error.errors).map((err: any) => err.message);
+            throw HttpError.badRequest(`Bulk update validation failed: ${errorMessages.join(', ')}`);
+        }
+        
+        // Handle cast errors (invalid ObjectId in filter)
+        if (error.name === 'CastError') {
+            throw HttpError.badRequest('Invalid ObjectId format in filter criteria');
+        }
+        
         next(error);
     }
 });

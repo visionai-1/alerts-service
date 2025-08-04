@@ -52,12 +52,13 @@ router.post('/', validateJoi({ body: alertSchema }), async (req, res, next) => {
 router.get('/', validateJoi({ query: alertQuerySchema }), async (req, res, next) => {
     try {
         Logging.info("Fetching alerts from database");
-        const { type, parameter, limit, page, sortBy, sortOrder } = req.query;
+        const { type, parameter, lastState, limit, page, sortBy, sortOrder } = req.query;
         
         // Build query filters
         const query: any = {};
         if (type) query.type = type;
         if (parameter) query.parameter = parameter;
+        if (lastState) query.lastState = lastState;
         
         // Calculate skip for pagination
         const skip = (Number(page) - 1) * Number(limit);

@@ -118,8 +118,9 @@ export const alertBulkUpdateSchema = Joi.object({
 export const alertQuerySchema = Joi.object({
     type: Joi.string().valid('realtime', 'forecast').optional(),
     parameter: Joi.string().optional(),
-    limit: Joi.number().integer().min(1).max(100).optional().default(50),
-    page: Joi.number().integer().min(1).optional().default(1),
-    sortBy: Joi.string().valid('createdAt', 'name', 'parameter').optional().default('createdAt'),
+    lastState: Joi.string().valid('triggered', 'not_triggered').optional(),
+    limit: Joi.number().integer().min(1).optional(),
+    page: Joi.number().integer().min(1).optional(),
+    sortBy: Joi.string().valid('createdAt', 'name', 'parameter', 'lastState').optional().default('createdAt'),
     sortOrder: Joi.string().valid('asc', 'desc').optional().default('desc')
 });

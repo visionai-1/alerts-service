@@ -25,7 +25,6 @@ const setupSecurityMiddleware = (app: Application): void => {
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: [
-            'Origin',
             'X-Requested-With',
             'Content-Type',
             'Accept',

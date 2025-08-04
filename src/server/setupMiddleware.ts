@@ -19,11 +19,9 @@ const setupSecurityMiddleware = (app: Application): void => {
         crossOriginEmbedderPolicy: false, // Disable for API compatibility
     }));
 
-    // CORS configuration
+    // CORS configuration - Allow all origins for network access
     const corsOptions = {
-        origin: ENV.NODE_ENV === 'production' 
-            ? ['https://your-frontend-domain.com'] // Add your production domains
-            : true, // Allow all origins in development
+        origin: true, // Allow all origins for all environments
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: [
